@@ -42,7 +42,6 @@ project_root/
 │   ├── grid_results.csv         # Sample grid search output
 │   └── random_results.json      # Sample random search output
 │
-├── main.py                      # Example script
 ├── notebook.ipynb               # Example usage notebook
 ├── README.md
 ├── EXECUTION_REPORT.md
@@ -97,34 +96,104 @@ Sample logs are available in the `sample_logs/` directory.
 
 ## Example Usage
 
-A full working example is provided in:
-- `main.py`
-- `notebook.ipynb`
+A full working example is provided in `notebook.ipynb`. The following is a condensed version of the notebook's code.
 
-### Example Flow
-1. Define a parameter space  
-2. Generate hyperparameter combinations  
-3. Execute search with cross-validation  
-4. Log results to CSV / JSON  
-
-Example snippet:
+### 1. Imports
 
 ```python
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import GradientBoostingClassifier
+
+from hyprparam_optimized.searcher import GridSearch, RandomSearch
+from hyprparam_optimized.parallel_process import ParallelExecutor
+from hyprparam_optimized.logger import log_to_csv, log_to_json
+```
+
+### 2. Data Loading and Preparation
+
+```python
+# Load the dataset
+df = pd.read_csv(r"train_and_test2.csv")
+
+# Data cleaning and preparation
+df = df.drop(columns=['zero','zero.4','zero.15','zero.17','zero.18'])
+df = df.drop_duplicates()
+df = df.dropna()
+
+# Define features (X) and target (y)
+y = df['2urvived']
+x = df.drop(columns='2urvived')
+
+# Split data into training and testing sets
+x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
+```
+
+### 3. Grid Search Example
+
+```python
+# Define the hyperparameter space for Grid Search
+param_space = {
+    'classifier__n_estimators': [50, 100],
+    'classifier__learning_rate': [0.05, 0.1],
+    'classifier__max_depth': [3, 4]
+}
+
+# Create a scikit-learn pipeline
+pipeline = Pipeline([
+    ('scaler', StandardScaler()),
+    ('classifier', GradientBoostingClassifier())
+])
+
+# Create a GridSearch object and generate parameter combinations
 grid = GridSearch(param_space)
 grid_params = grid.generate()
 
+# Run the hyperparameter search in parallel
 executor = ParallelExecutor(n_jobs=-1)
 results = executor.run(
     estimator=pipeline,
-    X=X_train,
+    X=x_train,
     y=y_train,
     param_list=grid_params,
     cv=5,
     scoring="accuracy"
 )
 
+# Log the results to a CSV file
 log_to_csv(results, "sample_logs/grid_results.csv")
-````
+```
+
+### 4. Random Search Example
+
+```python
+# Define the hyperparameter space for Random Search
+param_space_random = {
+    'classifier__n_estimators': [10, 20, 50, 100, 200],
+    'classifier__learning_rate': [0.01, 0.05, 0.1, 0.2],
+    'classifier__max_depth': [2, 3, 4, 5]
+}
+
+# Create a RandomSearch object
+random_search = RandomSearch(param_space_random, n_iter=10, random_state=42)
+random_params = random_search.generate()
+
+# Run the hyperparameter search in parallel
+results_random = executor.run(
+    estimator=pipeline,
+    X=x_train,
+    y=y_train,
+    param_list=random_params,
+    cv=5,
+    scoring="accuracy"
+)
+
+# Log the results to a JSON file
+log_to_json(results_random, "sample_logs/random_results.json")
+```
+
 
 ---
 
